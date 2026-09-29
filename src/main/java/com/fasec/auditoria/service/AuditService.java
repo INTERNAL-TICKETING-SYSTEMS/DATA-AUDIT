@@ -6,10 +6,14 @@ import com.fasec.auditoria.repository.AuditEventRepository;
 import com.fasec.auditoria.util.HashUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AuditService {
@@ -70,5 +74,31 @@ public class AuditService {
 
     public List<AuditEvent> listarPorEntidade(String entidade, String idEntidade) {
         return repository.findByEntidadeAndIdEntidade(entidade, idEntidade);
+    }
+
+    public Map<String, Object> verificarIntegridade(Long id) {
+        AuditEvent evento = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Evento de auditoria não encontrado com ID: " + id));
+
+        String hashRecalculado = HashUtil.gerarHashSha256(
+                evento.getOrigem(),
+                evento.getEntidade(),
+                evento.getIdEntidade(),
+                evento.getTipoOperacao(),
+                evento.getAutor(),
+                evento.getDataHoraEvento().toString(),
+                evento.getEstadoAtual()
+        );
+
+        boolean isIntegro = hashRecalculado.equalsIgnoreCase(evento.getHashIntegridade());
+
+        return Map.of(
+                "eventoId", evento.getId(),
+                "statusIntegridade", isIntegro ? "INTEGRO" : "VIOLADO",
+                "hashArmazenado", evento.getHashIntegridade(),
+                "hashRecalculado", hashRecalculado,
+                "dataValidacao", LocalDateTime.now()
+        );
     }
 }
