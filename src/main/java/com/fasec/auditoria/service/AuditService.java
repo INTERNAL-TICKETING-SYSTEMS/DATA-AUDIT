@@ -7,6 +7,7 @@ import com.fasec.auditoria.util.HashUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -14,12 +15,16 @@ import java.util.List;
 public class AuditService {
 
     private final AuditEventRepository repository;
+    private final AuditRuleValidatorService validatorService;
 
-    public AuditService(AuditEventRepository repository) {
+    public AuditService(AuditEventRepository repository, AuditRuleValidatorService validatorService) {
         this.repository = repository;
+        this.validatorService = validatorService;
     }
 
+    @Transactional
     public AuditEvent registrarEvento(AuditEventRequestDTO dto) {
+        // 1. Gera o hash criptográfico de integridade forense
         String hash = HashUtil.gerarHashSha256(
             dto.origem(),
             dto.entidade(),
@@ -42,10 +47,15 @@ public class AuditService {
             dto.metadados(),
             hash
         );
-        return repository.save(evento);
+
+        AuditEvent salvo = repository.save(evento);
+
+        // 2. Aciona o motor de validação de regras de integridade operacional
+        validatorService.validarEvento(dto);
+
+        return salvo;
     }
 
-    // Consulta com paginação estruturada
     public Page<AuditEvent> listarPaginado(Pageable pageable) {
         return repository.findAll(pageable);
     }
