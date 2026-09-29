@@ -1,98 +1,108 @@
-# DATA-AUDIT — Microsserviço de Auditoria Imutável e Segurança Forense
+DATA-AUDIT — Microsserviço de Auditoria Imutável e Segurança Forense
+O DATA-AUDIT é um microsserviço independente e resiliente concebido para assegurar rastreabilidade integral, conformidade de regras de negócio em tempo real e custódia forense de registos transacionais.
 
-[![Java](https://img.shields.io/badge/Java-17%20LTS-orange.svg)](https://www.oracle.com/java/)
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](#)
+O sistema implementa o padrão Append-Only Ledger: os registos gravados e assinados não podem ser alterados (UPDATE) ou eliminados (DELETE), combinando assinaturas criptográficas determinísticas na aplicação com bloqueios físicos diretamente na base de dados.
 
-O **DATA-AUDIT** é um microsserviço independente e resiliente concebido para prover rastreabilidade integral, compliance de regras de negócio em tempo real e custódia forense de registros transacionais. 
+1. Visão Geral da Arquitetura
+O sistema atua de forma autónoma através de uma interface REST desacoplada:
 
-O sistema foi arquitetado como uma camada append-only desacoplada, servindo como motor de integridade e custódia para sistemas corporativos de missão crítica — operando de forma nativa e integrada ao ecossistema do **STI (Sistema de Chamados)**.
+STI (Sistema de Chamados): Envia os eventos transacionais em formato JSON.
 
----
+DATA-AUDIT Engine: Valida o contrato DTO, gera a assinatura digital SHA-256 e executa as regras ativas de conformidade (REG-001 a REG-004).
 
-## 1. Visão Geral e Arquitetura
+AuditHikariPool: Pool de ligações afinado para alta disponibilidade e baixa latência.
 
-O sistema adota o padrão de projeto **Append-Only Ledger**: uma vez que um registro é aceito, persistido e assinado, ele nunca mais poderá sofrer alterações (`UPDATE`) ou deleções (`DELETE`). 
+PostgreSQL 16 (audit_schema): Custódia física dos dados em tabelas imutáveis protegidas por triggers PL/pgSQL nativas.
 
-A auditoria opera de forma **ativa**: além de custodiar os dados, inspeciona o estado da transação em tempo de escrita, levantando inconformidades operacionais imediatamente.
+2. Tecnologias Utilizadas
+Linguagem & Plataforma: Java 17 LTS
 
-                      [ SISTEMA CLIENTE / CONSUMIDOR (STI) ]
-                                        │
-                                        │ Requisições HTTP REST (JSON)
-                                        ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐│                        DATA-AUDIT ENGINE (Spring Boot 3 / Java 17)                     ││                                                                                        ││  ┌─────────────────────────┐  ┌────────────────────────┐  ┌─────────────────────────┐  ││  │  GlobalExceptionHandler │  │  Validação de Contrato │  │     HikariCP Tuning     │  ││  │  (Padronização RFC-7807)│  │     (Bean Validation)  │  │  (AuditHikariPool - 15) │  ││  └───────────┬─────────────┘  └───────────┬────────────┘  └────────────┬────────────┘  ││              └────────────────────────────┼────────────────────────────┘               ││                                           ▼                                            ││                 ┌──────────────────────────────────────────────────┐                   ││                 │   Motor Criptográfico: SHA-256 Determinístico    │                   ││                 └─────────────────────────┬────────────────────────┘                   ││                                           ▼                                            ││                 ┌──────────────────────────────────────────────────┐                   ││                 │ Motor Ativo de Conformidade: Regras REG-001..004 │                   ││                 └─────────────────────────┬────────────────────────┘                   │└───────────────────────────────────────────┼────────────────────────────────────────────┘│ Conexão TCP / JDBC▼┌────────────────────────────────────────────────────────────────────────────────────────┐│                      POSTGRESQL 16 (Schema Isolado: audit_schema)                      ││                                                                                        ││  ┌────────────────────────────────────────┐  ┌──────────────────────────────────────┐  ││  │            tb_audit_event              │  │          tb_data_violation           │  ││  │   (Custódia imutável de transações)    │  │ (Alertas de quebra de conformidade)  │  ││  └──────────────────┬─────────────────────┘  └──────────────────┬───────────────────┘  ││                     │                                           │                      ││     Triggers Nativas (PL/pgSQL)                      Índices Otimizados B-Tree         ││     [Bloqueio físico de UPDATE e DELETE]             [Status/Data e Entidade/Data]     │└────────────────────────────────────────────────────────────────────────────────────────┘
----
+Framework Principal: Spring Boot 3.x (Spring Web, Spring Data JPA, Bean Validation)
 
-## 2. Tecnologias Utilizadas
+Base de Dados: PostgreSQL 16 (Schema audit_schema)
 
-* **Linguagem:** Java 17 (Long-Term Support)
-* **Framework:** Spring Boot 3.x (Spring Web, Spring Data JPA, Bean Validation)
-* **Banco de Dados:** PostgreSQL 16
-* **Pool de Conexões:** HikariCP (`AuditHikariPool` com limites de resiliência configurados)
-* **Documentação de API:** OpenAPI 3 / Swagger UI
-* **Contêineres:** Docker e Docker Compose
-* **Versionamento de Código:** Git e GitHub com esteira de branches e issues rastreadas
+Gestão de Ligações: HikariCP (AuditHikariPool)
 
----
+Documentação Interativa: OpenAPI 3 / Swagger UI
 
-## 3. Mecanismos de Segurança e Imutabilidade
+Virtualização e Orquestração: Docker e Docker Compose
 
-A garantia de integridade do DATA-AUDIT atua em duas barreiras complementares:
+3. Mecanismos de Integridade e Segurança Forense
+3.1. Assinatura Criptográfica Forense (SHA-256)
+No momento da ingestão do evento, o motor criptográfico gera uma assinatura canónica determinística calculada a partir dos dados do registo:
 
-### Barreira 1: Assinatura Criptográfica Forense (SHA-256)
-No momento da ingestão do evento, o sistema calcula uma assinatura canônica determinística a partir da concatenação dos dados essenciais:
+Hash = SHA-256(origem + entidade + idEntidade + tipoOperacao + autor + dataHoraEvento + estadoAtual)
 
-$$\text{Hash} = \text{SHA-256}(\text{origem} + \text{entidade} + \text{idEntidade} + \text{tipoOperacao} + \text{autor} + \text{dataHoraEvento} + \text{estadoAtual})$$
+O endpoint de verificação recalcula a assinatura em memória a partir dos dados persistidos e compara com o hash gravado. Caso exista divergência, o sistema alerta de imediato para a quebra de integridade.
 
-O endpoint `GET /api/v1/audit/events/{id}/verificar-integridade` reconstrói a assinatura a partir dos dados do banco e confronta com o hash persistido. Se qualquer caractere for modificado, a quebra de integridade é imediatamente detectada.
+3.2. Bloqueio Físico na Base de Dados (PL/pgSQL)
+Triggers nativas no PostgreSQL impedem a execução de instruções de modificação ou remoção:
 
-### Barreira 2: Travas Físicas em Nível de Banco (PL/pgSQL)
-Mesmo que um operador ou invasor possua credenciais diretas no PostgreSQL, as seguintes triggers impedem alterações no schema de auditoria:
+Função de Bloqueio: audit_schema.trg_bloquear_mutacao_audit()
 
-```sql
-CREATE OR REPLACE FUNCTION audit_schema.trg_bloquear_mutacao_audit()
-RETURNS TRIGGER AS $$
-BEGIN
-    RAISE EXCEPTION 'Operação violada: Registros de auditoria são estritamente imutáveis (Append-Only).';
-END;
-$$ LANGUAGE plpgsql;
+Gatilho de Update: trg_audit_event_no_update (Bloqueia comandos UPDATE)
 
-CREATE TRIGGER trg_audit_event_no_update
-BEFORE UPDATE ON audit_schema.tb_audit_event
-FOR EACH ROW EXECUTE FUNCTION audit_schema.trg_bloquear_mutacao_audit();
+Gatilho de Delete: trg_audit_event_no_delete (Bloqueia comandos DELETE)
 
-CREATE TRIGGER trg_audit_event_no_delete
-BEFORE DELETE ON audit_schema.tb_audit_event
-FOR EACH ROW EXECUTE FUNCTION audit_schema.trg_bloquear_mutacao_audit();
-4. Motor Ativo de Regras de Conformidade (Compliance Engine)Diferente de sistemas de log tradicionais, o DATA-AUDIT analisa ativamente os dados no momento do registro:CódigoDescrição da RegraSeveridadeEfeito do MotorREG-001Encerramento de chamado sem parecer técnico de resolução preenchido.ALTAGera ocorrência pendente em tb_data_violation para mediação gerencial.REG-002Salto irregular de fluxo (ex: transição direta de CRIADO para CONCLUIDO).CRITICAIntercepta quebra de processo e alerta a governança.REG-003Inconsistência temporal (data futura ou defasagem severa de horário).MEDIASinaliza dessincronização cronológica de sistema cliente.REG-004Ação executada por perfil desprovido de autorização para o estágio.ALTASinaliza suspeita de escalonamento indevido de privilégios.5. Dicionário de Endpoints da API RESTURL Base da API: http://localhost:8081/api/v1/audit5.1. Ingestão de Evento de AuditoriaRota: POST /eventsStatus de Sucesso: 201 CreatedExemplo de Payload:JSON{
-  "origem": "STI-CHAMADOS",
-  "entidade": "TICKET",
-  "idEntidade": "8841",
-  "tipoOperacao": "FINALIZACAO",
-  "autor": "tecnico.silva",
-  "dataHoraEvento": "2026-09-29T10:15:30",
-  "estadoAnterior": "{\"status\": \"EM_ATENDIMENTO\"}",
-  "estadoAtual": "{\"status\": \"ENCERRADO\", \"parecer\": \"Troca de switch efetuada com sucesso.\"}",
-  "metadados": "{\"ip\": \"192.168.1.120\", \"terminal\": \"TER-04\"}"
-}
-5.2. Linha do Tempo do Recurso (Timeline)Rota: GET /events/entidade/{entidade}/{idEntidade}Status: 200 OKUso: Resgata o histórico auditado de um ticket ou recurso com ordenação cronológica decrescente.5.3. Verificação Forense de IntegridadeRota: GET /events/{id}/verificar-integridadeStatus: 200 OKExemplo de Retorno:JSON{
-  "idEvento": 1,
-  "hashArmazenado": "4a5e1e...b8f1",
-  "hashRecalculado": "4a5e1e...b8f1",
-  "statusIntegridade": "INTEGRO"
-}
-5.4. Gestão de ViolaçõesGET /violations/pendentes — Lista inconformidades operacionais abertas.PUT /violations/{id}/resolver — Registra a tratativa do gestor e resolve a anomalia.5.5. Respostas Padronizadas de Erro (RFC 7807)Erros de validação retornam HTTP 400 com detalhes sem expor a pilha de execução (stack trace):JSON{
-  "timestamp": "2026-09-29T14:47:00.202",
-  "status": 400,
-  "erro": "Erro de Validação de Dados",
-  "detalhes": {
-    "origem": "Origem é obrigatória",
-    "tipoOperacao": "Tipo de Operação é obrigatório"
-  }
-}
-6. Configuração e Execução do Ambiente6.1. Pré-requisitosDocker e Docker ComposeTerminal PowerShell ou Bash6.2. Inicialização dos ContêineresNa pasta raiz do projeto:Bashdocker compose up -d --build
-6.3. Portas e ServiçosServiçoInterface / RotaPorta HostDATA-AUDIT APIhttp://localhost:80818081Documentação Swaggerhttp://localhost:8081/swagger-ui.html8081Banco PostgreSQLJDBC / TCP54327. Scripts Automatizados de TesteO projeto possui scripts automatizados em PowerShell dentro da pasta scripts/:7.1. Validação Ponta a Ponta das 4 PersonasSimula a jornada transacional completa (Cliente abrindo, Técnico resolvendo, Gerente tratando anomalia e Diretor auditando a integridade):PowerShellGet-Content .\scripts\integracao_sti_fluxo_completo.ps1 -Raw | iex
-7.2. Benchmark de Carga e EstresseDispara um lote contínuo de 100 requisições calculando latência e estabilidade:PowerShellGet-Content .\scripts\teste_carga_benchmark.ps1 -Raw | iex
-8. Resultados do Benchmark de Performance (ATV-008)Resultados coletados no teste de estresse transacional com escrita e hashing em tempo real:Indicador de PerformanceResultado ObtidoSLA EstabelecidoSituaçãoDisponibilidade / Taxa de Sucesso100% (100 de 100)$\ge 99.0\%$Em ConformidadeFalhas / Conexões Perdidas0$0$Em ConformidadeDuração Total do Lote5.51 s$\le 10.0\text{ s}$Em ConformidadeTaxa de Transferência (Throughput)18.15 req/s$\ge 10.0\text{ req/s}$Em ConformidadeLatência Média por Evento54.15 ms$\le 150.0\text{ ms}$Em ConformidadeLatência Mínima Observada10.0 ms—Em ConformidadeLatência Máxima (Pico)219.0 ms$\le 500.0\text{ ms}$Em Conformidade
+4. Motor Ativo de Regras de Conformidade
+O sistema analisa ativamente as transações em tempo real:
+
+REG-001 (Severidade Alta): Encerramento de chamado sem parecer técnico de resolução preenchido.
+
+REG-002 (Severidade Crítica): Transição ilegal de estados do ciclo de vida.
+
+REG-003 (Severidade Média): Inconsistência temporal e dessincronização cronológica.
+
+REG-004 (Severidade Alta): Operação executada por perfil sem autorização atribuída.
+
+5. Dicionário de Endpoints da API REST
+URL Base: http://localhost:8081/api/v1/audit
+
+POST /events — Ingestão de novos eventos transacionais (Retorna 201 Created).
+
+GET /events/entidade/{entidade}/{idEntidade} — Linha do tempo cronológica da entidade.
+
+GET /events/{id}/verificar-integridade — Verificação forense de integridade da assinatura.
+
+GET /violations/pendentes — Listagem de violações de conformidade em aberto.
+
+PUT /violations/{id}/resolver — Registo de despacho e encerramento de inconformidade.
+
+6. Execução do Ambiente com Docker
+Inicialização dos Serviços
+Na raiz do projeto, execute:
+
+docker compose up -d --build
+
+Portas e Interfaces Disponíveis
+API de Auditoria: http://localhost:8081
+
+Consola Swagger UI: http://localhost:8081/swagger-ui.html
+
+Ligação PostgreSQL: Porta 5432 (Base de dados: audit_db)
+
+7. Scripts Automatizados de Teste
+Disponíveis no diretório scripts/:
+
+Validação Transacional Ponta a Ponta (4 Perfis):
+Get-Content .\scripts\integracao_sti_fluxo_completo.ps1 -Raw | iex
+
+Benchmark de Carga e Estresse:
+Get-Content .\scripts\teste_carga_benchmark.ps1 -Raw | iex
+
+8. Resultados do Teste de Carga e Confiabilidade (ATV-008)
+Resultados homologados sob bateria contínua de escrita transacional:
+
+Taxa de Sucesso: 100% (100 de 100 requisições)
+
+Falhas ou Perda de Ligação: 0
+
+Tempo Total de Processamento: 5.51 segundos
+
+Throughput: 18.15 requisições por segundo
+
+Latência Média: 54.15 ms
+
+Latência Mínima: 10 ms
+
+Latência Máxima: 219 ms
