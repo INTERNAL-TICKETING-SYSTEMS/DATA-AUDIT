@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/audit/events")
 public class AuditController {
@@ -23,24 +25,27 @@ public class AuditController {
     }
 
     @PostMapping
-    public ResponseEntity<AuditEvent> registrar(@RequestBody @Valid AuditEventRequestDTO dto) {
-        AuditEvent salvo = auditService.registrarEvento(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(salvo);
+    public ResponseEntity<AuditEvent> registrarEvento(@Valid @RequestBody AuditEventRequestDTO dto) {
+        AuditEvent eventoSalvo = auditService.registrarEvento(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(eventoSalvo);
     }
 
-    // Endpoint paginado padrão: devolve 10 registos por página, ordenados pelos mais recentes
     @GetMapping
     public ResponseEntity<Page<AuditEvent>> listarPaginado(
-            @PageableDefault(page = 0, size = 10, sort = "dataCriacao", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(auditService.listarPaginado(pageable));
     }
 
-    // Endpoint paginado por entidade auditada
     @GetMapping("/{entidade}/{idEntidade}")
     public ResponseEntity<Page<AuditEvent>> listarPorEntidadePaginado(
             @PathVariable String entidade,
             @PathVariable String idEntidade,
-            @PageableDefault(page = 0, size = 10, sort = "dataCriacao", direction = Sort.Direction.DESC) Pageable pageable) {
+            @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(auditService.listarPorEntidadePaginado(entidade, idEntidade, pageable));
+    }
+
+    @GetMapping("/{id}/verificar-integridade")
+    public ResponseEntity<Map<String, Object>> verificarIntegridade(@PathVariable Long id) {
+        return ResponseEntity.ok(auditService.verificarIntegridade(id));
     }
 }
