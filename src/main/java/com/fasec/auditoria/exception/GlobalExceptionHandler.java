@@ -1,5 +1,6 @@
 package com.fasec.auditoria.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -27,22 +28,46 @@ public class GlobalExceptionHandler {
         Map<String, Object> corpoResposta = new HashMap<>();
         corpoResposta.put("timestamp", LocalDateTime.now());
         corpoResposta.put("status", HttpStatus.BAD_REQUEST.value());
-        corpoResposta.put("erro", "Erro de Validação de Dados");
+        corpoResposta.put("erro", "Erro de Validacao de Dados");
         corpoResposta.put("detalhes", mensagensCampos);
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpoResposta);
     }
 
-    // Trata JSON com formato quebrado ou tipos incompatíveis (ex: texto num campo de data)
+    // Trata JSON com formato quebrado ou tipos incompatíveis
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> tratarJsonInvalido(HttpMessageNotReadableException ex) {
         Map<String, Object> corpoResposta = new HashMap<>();
         corpoResposta.put("timestamp", LocalDateTime.now());
         corpoResposta.put("status", HttpStatus.BAD_REQUEST.value());
-        corpoResposta.put("erro", "Corpo da Requisição Inválido");
-        corpoResposta.put("mensagem", "Formato JSON mal estruturado ou tipos de dados incompatíveis.");
+        corpoResposta.put("erro", "Corpo da Requisicao Invalido");
+        corpoResposta.put("mensagem", "Formato JSON mal estruturado ou tipos de dados incompativeis.");
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpoResposta);
+    }
+
+    // Trata argumentos ilegais passados na requisição
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> tratarArgumentoInvalido(IllegalArgumentException ex) {
+        Map<String, Object> corpoResposta = new HashMap<>();
+        corpoResposta.put("timestamp", LocalDateTime.now());
+        corpoResposta.put("status", HttpStatus.BAD_REQUEST.value());
+        corpoResposta.put("erro", "Argumento Invalido");
+        corpoResposta.put("mensagem", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpoResposta);
+    }
+
+    // Trata recursos não encontrados no banco (retorna 404 em vez de 500)
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> tratarNaoEncontrado(EntityNotFoundException ex) {
+        Map<String, Object> corpoResposta = new HashMap<>();
+        corpoResposta.put("timestamp", LocalDateTime.now());
+        corpoResposta.put("status", HttpStatus.NOT_FOUND.value());
+        corpoResposta.put("erro", "Registro Nao Encontrado");
+        corpoResposta.put("mensagem", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(corpoResposta);
     }
 
     // Trata qualquer erro inesperado
