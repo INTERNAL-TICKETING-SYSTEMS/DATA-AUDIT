@@ -26,24 +26,25 @@ public class AuditSchedulerService {
         this.dataViolationRepository = dataViolationRepository;
     }
 
-    // Executa a cada 5 minutos (300.000 ms) automaticamente em background
+    // Executa periodicamente a cada 5 minutos
     @Scheduled(fixedRate = 300000)
     public void rotinaAgendadaVarredura() {
-        log.info("[SCHEDULER] Iniciando varredura automatizada periódica de integridade...");
+        log.info("[SCHEDULER] Iniciando varredura automatizada de integridade temporal...");
         executarVarreduraConformidade();
     }
 
     public int executarVarreduraConformidade() {
-        // Busca eventos recentes
-        List<AuditEvent> eventos = auditEventRepository.findAll();
+        // Marco temporal: registros anteriores a 48 horas
+        LocalDateTime limiteTemporal = LocalDateTime.now().minusHours(48);
+
+        // O PostgreSQL filtra diretamente no disco, trazendo apenas os tickets candidatos
+        List<AuditEvent> eventosCandidatos = auditEventRepository
+                .findByEntidadeAndDataHoraEventoBefore("TICKET", limiteTemporal);
+
         int anomaliasDetectadas = 0;
 
-        for (AuditEvent evento : eventos) {
-            // REG-004: Auditoria de Eventos Obsoletos sem conclusão ou estagnação operacional
-            if ("TICKET".equalsIgnoreCase(evento.getEntidade()) &&
-                evento.getEstadoAtual() != null &&
-                evento.getEstadoAtual().toUpperCase().contains("ABERTO") &&
-                evento.getDataHoraEvento().isBefore(LocalDateTime.now().minusHours(48))) {
+        for (AuditEvent evento : eventosCandidatos) {
+            if (evento.getEstadoAtual() != null && evento.getEstadoAtual().toUpperCase().contains("ABERTO")) {
 
                 boolean jaRegistrado = dataViolationRepository.findByEntidadeAfetadaAndIdEntidadeAfetada(
                         evento.getEntidade(), evento.getIdEntidade()
@@ -59,12 +60,13 @@ public class AuditSchedulerService {
                     );
                     dataViolationRepository.save(violacao);
                     anomaliasDetectadas++;
-                    log.warn("[SCHEDULER] Anomalia REG-004 gerada para a entidade {} id {}", evento.getEntidade(), evento.getIdEntidade());
+                    log.warn("[SCHEDULER] Inconformidade REG-004 gerada para a entidade {} id {}", 
+                            evento.getEntidade(), evento.getIdEntidade());
                 }
             }
         }
 
-        log.info("[SCHEDULER] Varredura finalizada. Total de novas anomalias identificadas: {}", anomaliasDetectadas);
+        log.info("[SCHEDULER] Varredura finalizada. Anomalias identificadas nesta rodada: {}", anomaliasDetectadas);
         return anomaliasDetectadas;
     }
 }
