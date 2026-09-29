@@ -53,4 +53,8 @@ public class DataViolation {
     public String getIdEntidadeAfetada() { return idEntidadeAfetada; }
     public LocalDateTime getDataIdentificacao() { return dataIdentificacao; }
     public String getStatusResolucao() { return statusResolucao; }
+
+    public void setStatusResolucao(String statusResolucao) {
+        this.statusResolucao = statusResolucao;
+    }
 }
