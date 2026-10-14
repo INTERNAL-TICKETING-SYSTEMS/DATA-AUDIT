@@ -20,13 +20,22 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> registrarUtilizador(@RequestBody RegisterRequest req) {
         try {
+            // 1. Verificar se o CPF ou E-mail já existem para evitar erro 500 de chave duplicada
+            String checkSql = "SELECT COUNT(*) FROM usuarios WHERE cpf = ? OR email = ?";
+            Integer count = jdbcTemplate.queryForObject(checkSql, Integer.class, req.getCpf(), req.getEmail());
+
+            if (count != null && count > 0) {
+                return ResponseEntity.badRequest().body("Erro: Já existe um utilizador registado com este CPF ou E-mail.");
+            }
+
+            // 2. Executar o INSERT caso não exista
             String sql = "INSERT INTO usuarios (id, nome, email, email_pessoal, cpf, data_nascimento, genero, senha_hash, telefone_whatsapp, departamento_id, perfil, ativo, criado_em, atualizado_em) " +
                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SOLICITANTE', TRUE, NOW(), NOW())";
             
             UUID userId = UUID.randomUUID();
             LocalDate dataNasc = (req.getDataNascimento() != null && !req.getDataNascimento().isEmpty()) 
-                                  ? LocalDate.parse(req.getDataNascimento()) 
-                                  : null;
+                                    ? LocalDate.parse(req.getDataNascimento()) 
+                                    : null;
             
             UUID deptId = (req.getDepartamentoId() != null && !req.getDepartamentoId().isEmpty())
                           ? UUID.fromString(req.getDepartamentoId())
@@ -55,14 +64,14 @@ public class AuthController {
                 Types.VARCHAR,
                 Types.VARCHAR,
                 Types.VARCHAR,
-                Types.OTHER  // departamento_id (UUID)
+                Types.OTHER   // departamento_id (UUID)
             };
 
             jdbcTemplate.update(sql, params, types);
 
             return ResponseEntity.ok().body("Utilizador registado com sucesso no PostgreSQL!");
-      } catch (Exception e) {
-            e.printStackTrace(); // <-- Adiciona isto para o erro completo aparecer no Docker
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Erro ao registar utilizador: " + e.getMessage());
         }
     }
