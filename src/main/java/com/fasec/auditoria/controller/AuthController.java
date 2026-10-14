@@ -61,7 +61,8 @@ public class AuthController {
             jdbcTemplate.update(sql, params, types);
 
             return ResponseEntity.ok().body("Utilizador registado com sucesso no PostgreSQL!");
-        } catch (Exception e) {
+      } catch (Exception e) {
+            e.printStackTrace(); // <-- Adiciona isto para o erro completo aparecer no Docker
             return ResponseEntity.internalServerError().body("Erro ao registar utilizador: " + e.getMessage());
         }
     }

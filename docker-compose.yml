@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: audit_admin
       POSTGRES_PASSWORD: audit_password
     ports:
-      - "5433:5432"
+      - "5432:5432" # Corrigido para a porta padrão do PostgreSQL
     volumes:
       - audit_pgdata:/var/lib/postgresql/data
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,13 +22,25 @@ services:
     depends_on:
       - audit-db
     ports:
-      - "8081:8080"
+      - "8080:8080" # Corrigido para a porta 8080 para alinhar com o frontend
     environment:
       DB_HOST: audit-db
       DB_PORT: 5432
       DB_NAME: audit_db
       DB_USER: audit_admin
       DB_PASSWORD: audit_password
+    networks:
+      - audit-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: audit-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: adminpassword
+    ports:
+      - "5052:80"
     networks:
       - audit-net
 
