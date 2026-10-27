@@ -1,14 +1,24 @@
 -- =====================================================================
--- SCRIPT DEFINITIVO - TODAS AS TABELAS DO SISTEMA DE TICKETS E AUDITORIA
+-- SCRIPT DEFINITIVO E CORRIGIDO - TODAS AS TABELAS E SEEDS
 -- =====================================================================
 
--- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO) - Criado apenas uma vez com UNIQUE
+-- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO)
 CREATE TABLE IF NOT EXISTS departamentos (
     id SERIAL PRIMARY KEY,
-    nome VARCHAR(150) NOT NULL UNIQUE,
+    nome VARCHAR(150) NOT NULL,
     sigla VARCHAR(50),
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+-- Bloco seguro para garantir a restrição UNIQUE caso a tabela já exista sem ela
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'departamentos_nome_key'
+    ) THEN
+        ALTER TABLE departamentos ADD CONSTRAINT departamentos_nome_key UNIQUE (nome);
+    END IF;
+END $$;
 
 -- 2. UTILIZADORES / CADASTROS
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -55,7 +65,7 @@ CREATE TABLE IF NOT EXISTS chamado_mensagens (
     chamado_id INT REFERENCES chamados(id) ON DELETE CASCADE,
     remetente_email VARCHAR(150) NOT NULL,
     mensagem TEXT,
-    imagem_url VARCHAR(500), -- Link ou caminho do print/imagem enviado no chat
+    imagem_url VARCHAR(500),
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
@@ -149,38 +159,30 @@ ON CONFLICT (nome) DO NOTHING;
 -- =====================================================================
 -- SEED DE DADOS: CONTAS OFICIAIS DO SISTEMA (STI)
 -- =====================================================================
-
--- 1. Solicitante Padrão
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Servidor Padrão', 'servidor@sti.chamados.com', '000.000.000-01', '$2a$10$ExemploHashSenhaDummyParaTestes', 'SOLICITANTE', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 2. Carlos Daniel Santos Ferreira (Técnico de Suporte STI)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Carlos Daniel Santos', 'carlos.daniel@sti.chamados.com', '111.111.111-11', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 3. João Pedro Moreira (Técnico de Suporte STI)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('João Pedro Moreira', 'joao.pedro@sti.chamados.com', '222.222.222-22', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 4. Guilherme Ferreira de Souza (Técnico de Suporte STI)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Guilherme Ferreira', 'guilherme.ferreira@sti.chamados.com', '333.333.333-33', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 5. Wanderson Alves Maior (Técnico & Gestor)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Wanderson Alves', 'wanderson.maior@sti.chamados.com', '444.444.444-44', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 6. Luigue Soares Brandão (Diretor Administrativo / Gestor)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Luigue Soares Brandão', 'luigue.brandao@sti.chamados.com', '555.555.555-55', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- 7. Elias Nunes da Silva Junior (Gerente Administrativo / Gestor)
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Elias Nunes da Silva Junior', 'elias.junior@sti.chamados.com', '666.666.666-66', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
 ON CONFLICT (email) DO NOTHING;
