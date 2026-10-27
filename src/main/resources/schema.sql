@@ -97,3 +97,45 @@ CREATE TABLE IF NOT EXISTS tb_system_activity_logs (
     detalhes_ip_origem VARCHAR(50),
     criado_em TIMESTAMP DEFAULT NOW()
 );
+
+-- =====================================================================
+-- SEED DE DADOS: CONTAS OFICIAIS DO SISTEMA (STI)
+-- =====================================================================
+
+-- Utilizaremos a cláusula ON CONFLICT (email) DO NOTHING para evitar erros 
+-- caso o script seja executado mais de uma vez.
+
+-- 1. Solicitante Padrão
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Servidor Padrão', 'servidor@sti.chamados.com', '000.000.000-01', '$2a$10$ExemploHashSenhaDummyParaTestes', 'SOLICITANTE', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 2. Carlos Daniel Santos Ferreira (Técnico de Suporte STI)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Carlos Daniel Santos', 'carlos.daniel@sti.chamados.com', '111.111.111-11', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 3. João Pedro Moreira (Técnico de Suporte STI)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('João Pedro Moreira', 'joao.pedro@sti.chamados.com', '222.222.222-22', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 4. Guilherme Ferreira de Souza (Técnico de Suporte STI)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Guilherme Ferreira', 'guilherme.ferreira@sti.chamados.com', '333.333.333-33', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 5. Wanderson Alves Maior (Técnico & Gestor)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Wanderson Alves', 'wanderson.maior@sti.chamados.com', '444.444.444-44', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 6. Luigue Soares Brandão (Diretor Administrativo / Gestor)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Luigue Soares Brandão', 'luigue.brandao@sti.chamados.com', '555.555.555-55', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
+ON CONFLICT (email) DO NOTHING;
+
+-- 7. Elias Nunes da Silva Junior (Gerente Administrativo / Gestor)
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+VALUES ('Elias Nunes da Silva Junior', 'elias.junior@sti.chamados.com', '666.666.666-66', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
+ON CONFLICT (email) DO NOTHING;
