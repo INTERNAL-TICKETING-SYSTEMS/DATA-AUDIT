@@ -1,24 +1,14 @@
 -- =====================================================================
--- SCRIPT DEFINITIVO E CORRIGIDO - TODAS AS TABELAS E SEEDS
+-- SCRIPT DEFINITIVO - TODAS AS TABELAS DO SISTEMA DE TICKETS E AUDITORIA
 -- =====================================================================
 
 -- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO)
 CREATE TABLE IF NOT EXISTS departamentos (
     id SERIAL PRIMARY KEY,
-    nome VARCHAR(150) NOT NULL,
+    nome VARCHAR(150) NOT NULL UNIQUE,
     sigla VARCHAR(50),
     criado_em TIMESTAMP DEFAULT NOW()
 );
-
--- Bloco seguro para garantir a restrição UNIQUE caso a tabela já exista sem ela
-DO $$ 
-BEGIN 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'departamentos_nome_key'
-    ) THEN
-        ALTER TABLE departamentos ADD CONSTRAINT departamentos_nome_key UNIQUE (nome);
-    END IF;
-END $$;
 
 -- 2. UTILIZADORES / CADASTROS
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -50,8 +40,8 @@ CREATE TABLE IF NOT EXISTS chamados (
     id SERIAL PRIMARY KEY,
     titulo VARCHAR(200) NOT NULL,
     descricao TEXT NOT NULL,
-    status VARCHAR(50) DEFAULT 'ABERTO', -- ABERTO, EM_ANDAMENTO, RESOLVIDO, FECHADO
-    prioridade VARCHAR(30) DEFAULT 'MEDIA', -- BAIXA, MEDIA, ALTA, URGENTE
+    status VARCHAR(50) DEFAULT 'ABERTO',
+    prioridade VARCHAR(30) DEFAULT 'MEDIA',
     solicitante_email VARCHAR(150) NOT NULL,
     tecnico_atribuido_email VARCHAR(150),
     departamento_id INT REFERENCES departamentos(id) ON DELETE SET NULL,
@@ -74,7 +64,7 @@ CREATE TABLE IF NOT EXISTS feedbacks (
     id SERIAL PRIMARY KEY,
     chamado_id INT REFERENCES chamados(id) ON DELETE SET NULL,
     usuario_email VARCHAR(150) NOT NULL,
-    tipo VARCHAR(50) NOT NULL, -- 'MELHORIA' ou 'CRITICA'
+    tipo VARCHAR(50) NOT NULL,
     comentario TEXT NOT NULL,
     nota INT CHECK (nota >= 1 AND nota <= 5),
     criado_em TIMESTAMP DEFAULT NOW()
@@ -87,7 +77,7 @@ CREATE TABLE IF NOT EXISTS tb_audit_event (
     detalhes TEXT,
     hash_atual VARCHAR(255),
     hash_anterior VARCHAR(255),
-    status_integridade VARCHAR(50), -- 'VALIDO', 'VIOLADO'
+    status_integridade VARCHAR(50),
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
