@@ -2,11 +2,11 @@
 -- SCRIPT DEFINITIVO - TODAS AS TABELAS DO SISTEMA DE TICKETS E AUDITORIA
 -- =====================================================================
 
--- 1. DEPARTAMENTOS
+-- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO) - Criado apenas uma vez com UNIQUE
 CREATE TABLE IF NOT EXISTS departamentos (
     id SERIAL PRIMARY KEY,
-    nome VARCHAR(100) NOT NULL,
-    descricao TEXT,
+    nome VARCHAR(150) NOT NULL UNIQUE,
+    sigla VARCHAR(50),
     criado_em TIMESTAMP DEFAULT NOW()
 );
 
@@ -99,17 +99,8 @@ CREATE TABLE IF NOT EXISTS tb_system_activity_logs (
 );
 
 -- =====================================================================
--- TABELA DE DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO)
+-- SEED DE DADOS: DEPARTAMENTOS OFICIAIS DO DETRAN-TO
 -- =====================================================================
-
-CREATE TABLE IF NOT EXISTS departamentos (
-    id SERIAL PRIMARY KEY,
-    nome VARCHAR(150) NOT NULL UNIQUE,
-    sigla VARCHAR(50),
-    criado_em TIMESTAMP DEFAULT NOW()
-);
-
--- Inserção oficial de todos os setores do DETRAN-TO
 INSERT INTO departamentos (nome) VALUES 
 ('ASSESSORIA DE COMUNICAÇÃO - ASCOM'),
 ('ASSESSORIA DE PLANEJAMENTO ESTRATÉGICO - ASPLANE'),
@@ -158,9 +149,6 @@ ON CONFLICT (nome) DO NOTHING;
 -- =====================================================================
 -- SEED DE DADOS: CONTAS OFICIAIS DO SISTEMA (STI)
 -- =====================================================================
-
--- Utilizaremos a cláusula ON CONFLICT (email) DO NOTHING para evitar erros 
--- caso o script seja executado mais de uma vez.
 
 -- 1. Solicitante Padrão
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
