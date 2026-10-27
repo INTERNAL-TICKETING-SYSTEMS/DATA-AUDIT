@@ -1,5 +1,5 @@
 -- =====================================================================
--- SCRIPT DEFINITIVO - SISTEMA DE TICKETS E AUDITORIA (BLINDADO)
+-- SCRIPT DEFINITIVO - SISTEMA DE TICKETS E AUDITORIA (LIMPO)
 -- =====================================================================
 
 -- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO)
@@ -169,8 +169,6 @@ INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Wanderson Alves', 'wanderson.maior@sti.chamados.com', '444.444.444-44', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
-Junior: GESTOR
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Luigue Soares Brandão', 'luigue.brandao@sti.chamados.com', '555.555.555-55', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
 ON CONFLICT (email) DO NOTHING;
