@@ -1,16 +1,9 @@
 -- =====================================================================
--- SCRIPT DEFINITIVO COM DROP SEGURO - SISTEMA DE TICKETS E AUDITORIA
+-- SCRIPT DEFINITIVO - SISTEMA DE TICKETS E AUDITORIA (BLINDADO)
 -- =====================================================================
 
--- Força a limpeza da tabela antiga para garantir que nasce com o UNIQUE correto
-DROP TABLE IF EXISTS chamado_mensagens CASCADE;
-DROP TABLE IF EXISTS chamados CASCADE;
-DROP TABLE IF EXISTS password_reset_tokens CASCADE;
-DROP TABLE IF EXISTS usuarios CASCADE;
-DROP TABLE IF EXISTS departamentos CASCADE;
-
 -- 1. DEPARTAMENTOS / SETORES OFICIAIS (DETRAN-TO)
-CREATE TABLE departamentos (
+CREATE TABLE IF NOT EXISTS departamentos (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL UNIQUE,
     sigla VARCHAR(50),
@@ -18,7 +11,7 @@ CREATE TABLE departamentos (
 );
 
 -- 2. UTILIZADORES / CADASTROS
-CREATE TABLE usuarios (
+CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(150) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
@@ -33,7 +26,7 @@ CREATE TABLE usuarios (
 );
 
 -- 3. RECUPERAÇÃO DE SENHA (Tokens OTP via SMTP)
-CREATE TABLE password_reset_tokens (
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,
     usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
     token VARCHAR(255) NOT NULL,
@@ -43,7 +36,7 @@ CREATE TABLE password_reset_tokens (
 );
 
 -- 4. CHAMADOS / TICKETS
-CREATE TABLE chamados (
+CREATE TABLE IF NOT EXISTS chamados (
     id SERIAL PRIMARY KEY,
     titulo VARCHAR(200) NOT NULL,
     descricao TEXT NOT NULL,
@@ -57,7 +50,7 @@ CREATE TABLE chamados (
 );
 
 -- 5. MENSAGENS E ANEXOS DO CHAT (Suporte a texto e imagens)
-CREATE TABLE chamado_mensagens (
+CREATE TABLE IF NOT EXISTS chamado_mensagens (
     id SERIAL PRIMARY KEY,
     chamado_id INT REFERENCES chamados(id) ON DELETE CASCADE,
     remetente_email VARCHAR(150) NOT NULL,
@@ -67,7 +60,7 @@ CREATE TABLE chamado_mensagens (
 );
 
 -- 6. FEEDBACKS (Melhorias e Críticas)
-CREATE TABLE feedbacks (
+CREATE TABLE IF NOT EXISTS feedbacks (
     id SERIAL PRIMARY KEY,
     chamado_id INT REFERENCES chamados(id) ON DELETE SET NULL,
     usuario_email VARCHAR(150) NOT NULL,
@@ -78,7 +71,7 @@ CREATE TABLE feedbacks (
 );
 
 -- 7. AUDITORIA TEMPORÁRIA E HASHES
-CREATE TABLE tb_audit_event (
+CREATE TABLE IF NOT EXISTS tb_audit_event (
     id SERIAL PRIMARY KEY,
     evento VARCHAR(255) NOT NULL,
     detalhes TEXT,
@@ -89,7 +82,7 @@ CREATE TABLE tb_audit_event (
 );
 
 -- 8. VIOLAÇÕES DE DADOS
-CREATE TABLE tb_data_violation (
+CREATE TABLE IF NOT EXISTS tb_data_violation (
     id SERIAL PRIMARY KEY,
     descricao_violation TEXT NOT NULL,
     dados_afetados TEXT,
@@ -97,7 +90,7 @@ CREATE TABLE tb_data_violation (
 );
 
 -- 9. LOGS DE ATIVIDADE DO SISTEMA
-CREATE TABLE tb_system_activity_logs (
+CREATE TABLE IF NOT EXISTS tb_system_activity_logs (
     id SERIAL PRIMARY KEY,
     usuario_email VARCHAR(150),
     acao_realizada VARCHAR(255) NOT NULL,
@@ -176,6 +169,8 @@ INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Wanderson Alves', 'wanderson.maior@sti.chamados.com', '444.444.444-44', '$2a$10$ExemploHashSenhaDummyParaTestes', 'TECNICO', TRUE)
 ON CONFLICT (email) DO NOTHING;
 
+INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
+Junior: GESTOR
 INSERT INTO usuarios (nome, email, cpf, senha_hash, perfil, ativo)
 VALUES ('Luigue Soares Brandão', 'luigue.brandao@sti.chamados.com', '555.555.555-55', '$2a$10$ExemploHashSenhaDummyParaTestes', 'GESTOR', TRUE)
 ON CONFLICT (email) DO NOTHING;
