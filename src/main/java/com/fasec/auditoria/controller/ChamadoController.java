@@ -26,7 +26,7 @@ public class ChamadoController {
             List> chamados = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(chamados);
         } catch (Exception e) {
-            return ResponseEntity.ok(List.of());
+            return ResponseEntity.ok(List.of()); // Retorna lista vazia em caso de erro sem quebrar
         }
     }
 
