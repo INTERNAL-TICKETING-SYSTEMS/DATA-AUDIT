@@ -23,10 +23,10 @@ public class ChamadoController {
     public ResponseEntity<?> listarChamados() {
         try {
             String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, responsavel, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
-            List> chamados = jdbcTemplate.queryForList(sql);
-            return ResponseEntity.ok(chamados);
+            List<Map<String, Object>> listaChamados = jdbcTemplate.queryForList(sql);
+            return ResponseEntity.ok(listaChamados);
         } catch (Exception e) {
-            return ResponseEntity.ok(List.of()); // Retorna lista vazia em caso de erro sem quebrar
+            return ResponseEntity.ok(List.of());
         }
     }
 
@@ -72,7 +72,7 @@ public class ChamadoController {
         }
     }
 
-    // 4. Atualizar dados gerais / Atribuir responsável (Corrige o erro 500 no PUT /api/v1/chamados/{id})
+    // 4. Atualizar dados gerais / Atribuir responsável
     @PutMapping("/{id}")
     public ResponseEntity<?> atualizarChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
@@ -80,7 +80,6 @@ public class ChamadoController {
             String status = (String) req.get("status");
             String prioridade = (String) req.get("prioridade");
 
-            // Atualiza dinamicamente os campos enviados pelo frontend
             String sql = "UPDATE chamados SET responsavel = COALESCE(?, responsavel), status = COALESCE(?, status), prioridade = COALESCE(?, prioridade), atualizado_em = ? WHERE id = ?";
             
             int linhasAfetadas = jdbcTemplate.update(sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
