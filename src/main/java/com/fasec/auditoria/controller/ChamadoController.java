@@ -74,24 +74,29 @@ public class ChamadoController {
 
     // 4. Atualizar dados gerais / Atribuir responsável
     @PutMapping("/{id}")
-    public ResponseEntity<?> atualizarChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
-        try {
-            String responsavel = (String) req.get("responsavel");
-            String status = (String) req.get("status");
-            String prioridade = (String) req.get("prioridade");
+public ResponseEntity<?> atualizarChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
+    try {
+        String responsavel = req.containsKey("responsavel") ? (String) req.get("responsavel") : null;
+        String status = req.containsKey("status") ? (String) req.get("status") : null;
+        String prioridade = req.containsKey("prioridade") ? (String) req.get("prioridade") : null;
 
-            String sql = "UPDATE chamados SET responsavel = COALESCE(?, responsavel), status = COALESCE(?, status), prioridade = COALESCE(?, prioridade), atualizado_em = ? WHERE id = ?";
-            
-            int linhasAfetadas = jdbcTemplate.update(sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
+        String sql = "UPDATE chamados SET " +
+                     "responsavel = COALESCE(?, responsavel), " +
+                     "status = COALESCE(?, status), " +
+                     "prioridade = COALESCE(?, prioridade), " +
+                     "atualizado_em = ? " +
+                     "WHERE id = ?";
+        
+        int linhasAfetadas = jdbcTemplate.update(sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
 
-            if (linhasAfetadas > 0) {
-                return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado/atribuído com sucesso!"));
-            } else {
-                return ResponseEntity.status(404).body("Chamado não encontrado.");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Erro ao atualizar chamado: " + e.getMessage());
+        if (linhasAfetadas > 0) {
+            return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado com sucesso!"));
+        } else {
+            return ResponseEntity.status(404).body("Chamado não encontrado.");
         }
+    } catch (Exception e) {
+        e.printStackTrace();
+        return ResponseEntity.internalServerError().body("Erro ao atualizar chamado: " + e.getMessage());
     }
+}
 }
