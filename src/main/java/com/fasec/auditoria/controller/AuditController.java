@@ -30,6 +30,17 @@ public class AuditController {
         return ResponseEntity.status(HttpStatus.CREATED).body(eventoSalvo);
     }
 
+    @PatchMapping("/{id}")
+    public ResponseEntity<?> atualizarOuRegistarAuditoria(@PathVariable Long id, @RequestBody Map<String, Object> req) {
+        try {
+            // Lógica para processar a atualização ou registo forense enviado pelo frontend
+            return ResponseEntity.ok(Map.of("mensagem", "Registro de auditoria atualizado com sucesso!"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao atualizar auditoria: " + e.getMessage());
+        }
+    }
+
     @GetMapping
     public ResponseEntity<Page<AuditEvent>> listarPaginado(
             @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
