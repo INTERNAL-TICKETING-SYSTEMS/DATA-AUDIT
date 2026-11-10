@@ -22,15 +22,15 @@ public class ChamadoController {
     @GetMapping
     public ResponseEntity<?> listarChamados() {
         try {
-            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
-            List<Map<String, Object>> chamados = jdbcTemplate.queryForList(sql);
+            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, responsavel, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
+            List> chamados = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(chamados);
         } catch (Exception e) {
             return ResponseEntity.ok(List.of());
         }
     }
 
-    // 2. Criar um novo chamado (fica salvo no banco)
+    // 2. Criar um novo chamado
     @PostMapping
     public ResponseEntity<?> criarChamado(@RequestBody Map<String, Object> req) {
         try {
@@ -56,7 +56,7 @@ public class ChamadoController {
     @PutMapping("/{id}/status")
     public ResponseEntity<?> atualizarStatusChamado(@PathVariable Long id, @RequestBody Map<String, String> req) {
         try {
-            String novoStatus = req.get("status"); // Ex: RESOLVIDO, FECHADO, EM_ANDAMENTO
+            String novoStatus = req.get("status"); 
             String sql = "UPDATE chamados SET status = ?, atualizado_em = ? WHERE id = ?";
             
             int linhasAfetadas = jdbcTemplate.update(sql, novoStatus, Timestamp.valueOf(LocalDateTime.now()), id);
@@ -69,6 +69,30 @@ public class ChamadoController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Erro ao atualizar status: " + e.getMessage());
+        }
+    }
+
+    // 4. Atualizar dados gerais / Atribuir responsável (Corrige o erro 500 no PUT /api/v1/chamados/{id})
+    @PutMapping("/{id}")
+    public ResponseEntity<?> atualizarChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
+        try {
+            String responsavel = (String) req.get("responsavel");
+            String status = (String) req.get("status");
+            String prioridade = (String) req.get("prioridade");
+
+            // Atualiza dinamicamente os campos enviados pelo frontend
+            String sql = "UPDATE chamados SET responsavel = COALESCE(?, responsavel), status = COALESCE(?, status), prioridade = COALESCE(?, prioridade), atualizado_em = ? WHERE id = ?";
+            
+            int linhasAfetadas = jdbcTemplate.update(sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
+
+            if (linhasAfetadas > 0) {
+                return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado/atribuído com sucesso!"));
+            } else {
+                return ResponseEntity.status(404).body("Chamado não encontrado.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao atualizar chamado: " + e.getMessage());
         }
     }
 }
