@@ -38,7 +38,7 @@ public class AuditController {
             String tecnicoNome = (String) req.get("tecnicoNome");
             String novoStatus = (String) req.get("novoStatus");
 
-            // Processa o registo forense/parecer técnico
+            // Processa o parecer técnico e trilha forense
             return ResponseEntity.ok(Map.of(
                 "mensagem", "Parecer técnico e trilha forense registados com sucesso!",
                 "id", id,
