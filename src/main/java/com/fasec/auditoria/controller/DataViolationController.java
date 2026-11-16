@@ -15,6 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/audit/violations")
+@CrossOrigin(origins = "*")
 public class DataViolationController {
 
     private final DataViolationRepository repository;
@@ -37,16 +38,27 @@ public class DataViolationController {
     }
 
     @PatchMapping("/{id}/resolver")
-    public ResponseEntity<Map<String, Object>> resolverViolacao(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> resolverViolacao(
+            @PathVariable Long id, 
+            @RequestBody(required = false) Map<String, Object> req) {
+        
         DataViolation violacao = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inconformidade não encontrada."));
 
-        violacao.setStatusResolucao("RESOLVIDA");
+        violacao.setStatusResolucao("RESOLVIDO");
+        
+        if (req != null) {
+            String solucao = (String) req.get("solucao");
+            if (solucao != null) {
+                // Processamento opcional do parecer técnico
+            }
+        }
+
         repository.save(violacao);
 
         return ResponseEntity.ok(Map.of(
                 "id", violacao.getId(),
-                "codigoRegra", violacao.getCodigoRegra(),
+                "codigoRegra", violacao.getCodigoRegra() != null ? violacao.getCodigoRegra() : "GERAL",
                 "statusResolucao", violacao.getStatusResolucao(),
                 "mensagem", "Inconformidade operacional tratada e resolvida com sucesso."
         ));
