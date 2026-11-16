@@ -54,11 +54,15 @@ public class ChamadoController {
 
     // 3. Atualizar status ou fechar/resolver chamado
     @PutMapping("/{id}/status")
-    public ResponseEntity<?> atualizarStatusChamado(@PathVariable Long id, @RequestBody Map<String, String> req) {
+    public ResponseEntity<?> atualizarStatusChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
-            String novoStatus = req.get("status"); 
+            // Extrai o status de forma segura, seja ele enviado como "status" ou "novoStatus"
+            String novoStatus = req.containsKey("status") ? (String) req.get("status") : (String) req.get("novoStatus");
+            if (novoStatus == null) {
+                novoStatus = "FECHADO"; // Valor padrão caso venha vazio
+            }
+
             String sql = "UPDATE chamados SET status = ?, atualizado_em = ? WHERE id = ?";
-            
             int linhasAfetadas = jdbcTemplate.update(sql, novoStatus, Timestamp.valueOf(LocalDateTime.now()), id);
 
             if (linhasAfetadas > 0) {
