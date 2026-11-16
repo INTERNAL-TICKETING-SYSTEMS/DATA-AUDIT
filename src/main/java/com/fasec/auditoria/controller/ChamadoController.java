@@ -23,7 +23,7 @@ public class ChamadoController {
     public ResponseEntity<?> listarChamados() {
         try {
             String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, responsavel, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
-            List> chamados = jdbcTemplate.queryForList(sql);
+            List<Map<String, Object>> chamados = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(chamados);
         } catch (Exception e) {
             return ResponseEntity.ok(List.of());
