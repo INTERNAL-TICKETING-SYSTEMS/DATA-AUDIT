@@ -61,5 +61,4 @@ public class AuditController {
             @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(auditService.listarPorEntidadePaginado(entidade, idEntidade, pageable));
     }
-
 }
