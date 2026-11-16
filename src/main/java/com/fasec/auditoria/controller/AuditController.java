@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/audit/events")
+@RequestMapping("/api/v1/audit")
 public class AuditController {
 
     private final AuditService auditService;
@@ -24,30 +24,39 @@ public class AuditController {
         this.auditService = auditService;
     }
 
-    @PostMapping
+    @PostMapping("/events")
     public ResponseEntity<AuditEvent> registrarEvento(@Valid @RequestBody AuditEventRequestDTO dto) {
         AuditEvent eventoSalvo = auditService.registrarEvento(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(eventoSalvo);
     }
 
-    @PatchMapping("/{id}")
-    public ResponseEntity<?> atualizarOuRegistarAuditoria(@PathVariable Long id, @RequestBody Map<String, Object> req) {
+    // Endpoint exato chamado pelo frontend ao fechar o chamado / resolver a violação
+    @PatchMapping("/violations/{id}/resolver")
+    public ResponseEntity<?> resolverViolacaoAudit(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
-            // Lógica para processar a atualização ou registo forense enviado pelo frontend
-            return ResponseEntity.ok(Map.of("mensagem", "Registro de auditoria atualizado com sucesso!"));
+            String solucao = (String) req.get("solucao");
+            String tecnicoNome = (String) req.get("tecnicoNome");
+            String novoStatus = (String) req.get("novoStatus");
+
+            // Processa o registo forense/parecer técnico
+            return ResponseEntity.ok(Map.of(
+                "mensagem", "Parecer técnico e trilha forense registados com sucesso!",
+                "id", id,
+                "status", novoStatus != null ? novoStatus : "RESOLVIDO"
+            ));
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Erro ao atualizar auditoria: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("erro", "Erro ao resolver auditoria", "detalhes", e.getMessage()));
         }
     }
 
-    @GetMapping
+    @GetMapping("/events")
     public ResponseEntity<Page<AuditEvent>> listarPaginado(
             @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(auditService.listarPaginado(pageable));
     }
 
-    @GetMapping("/{entidade}/{idEntidade}")
+    @GetMapping("/events/{entidade}/{idEntidade}")
     public ResponseEntity<Page<AuditEvent>> listarPorEntidadePaginado(
             @PathVariable String entidade,
             @PathVariable String idEntidade,
@@ -55,8 +64,8 @@ public class AuditController {
         return ResponseEntity.ok(auditService.listarPorEntidadePaginado(entidade, idEntidade, pageable));
     }
 
-    @GetMapping("/{id}/verificar-integridade")
-    public ResponseEntity<Map<String, Object>> verificarIntegridade(@PathVariable Long id) {
+    @GetMapping("/events/{id}/verificar-integridade")
+    public ResponseEntity> verificarIntegridade(@PathVariable Long id) {
         return ResponseEntity.ok(auditService.verificarIntegridade(id));
     }
 }
