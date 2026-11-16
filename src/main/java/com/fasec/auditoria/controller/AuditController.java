@@ -62,9 +62,8 @@ public class AuditController {
         return ResponseEntity.ok(auditService.listarPorEntidadePaginado(entidade, idEntidade, pageable));
     }
 
-    @GetMapping("/events/{id}/verificar-integridade")
-    public ResponseEntity> verificarIntegridade(@PathVariable Long id) {
+   @GetMapping("/events/{id}/verificar-integridade")
+    public ResponseEntity<?> verificarIntegridade(@PathVariable Long id) {
         return ResponseEntity.ok(auditService.verificarIntegridade(id));
     }
-
-} // Fim da classe AuditController
+}
