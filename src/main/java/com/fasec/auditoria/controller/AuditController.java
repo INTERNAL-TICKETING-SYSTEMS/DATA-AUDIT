@@ -30,7 +30,6 @@ public class AuditController {
         return ResponseEntity.status(HttpStatus.CREATED).body(eventoSalvo);
     }
 
-    // Endpoint exato chamado pelo frontend ao fechar o chamado / resolver a violação
     @PatchMapping("/violations/{id}/resolver")
     public ResponseEntity<?> resolverViolacaoAudit(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
@@ -38,7 +37,6 @@ public class AuditController {
             String tecnicoNome = (String) req.get("tecnicoNome");
             String novoStatus = (String) req.get("novoStatus");
 
-            // Processa o parecer técnico e trilha forense
             return ResponseEntity.ok(Map.of(
                 "mensagem", "Parecer técnico e trilha forense registados com sucesso!",
                 "id", id,
@@ -65,7 +63,7 @@ public class AuditController {
     }
 
     @GetMapping("/events/{id}/verificar-integridade")
-    public ResponseEntity> verificarIntegridade(@PathVariable Long id) {
+    public ResponseEntity<?> verificarIntegridade(@PathVariable Long id) {
         return ResponseEntity.ok(auditService.verificarIntegridade(id));
     }
 }
