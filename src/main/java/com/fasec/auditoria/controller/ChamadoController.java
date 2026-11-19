@@ -22,11 +22,13 @@ public class ChamadoController {
     @GetMapping
     public ResponseEntity<?> listarChamados() {
         try {
-            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, responsavel, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
-            List<Map<String, Object>> chamados = jdbcTemplate.queryForList(sql);
+            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
+            List> chamados = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(chamados);
         } catch (Exception e) {
-            return ResponseEntity.ok(List.of());
+            System.err.println("[ChamadoController] Erro ao listar chamados: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Erro ao listar chamados: " + e.getMessage());
         }
     }
 
@@ -36,16 +38,23 @@ public class ChamadoController {
         try {
             String titulo = (String) req.get("titulo");
             String descricao = (String) req.get("descricao");
-            String prioridade = req.get("prioridade") != null ? (String) req.get("prioridade") : "MEDIA";
+            String prioridade = req.get("prioridade") != null ? String.valueOf(req.get("prioridade")) : "MEDIA";
             String solicitanteEmail = (String) req.get("solicitanteEmail");
 
             String sql = "INSERT INTO chamados (titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em) " +
                          "VALUES (?, ?, 'ABERTO', ?, ?, ?, ?)";
-            
-            LocalDateTime agora = LocalDateTime.now();
-            jdbcTemplate.update(sql, titulo, descricao, prioridade, solicitanteEmail, Timestamp.valueOf(agora), Timestamp.valueOf(agora));
 
-            return ResponseEntity.status(201).body(Map.of("mensagem", "Chamado aberto e salvo com sucesso!"));
+            LocalDateTime agora = LocalDateTime.now();
+            Timestamp ts = Timestamp.valueOf(agora);
+            jdbcTemplate.update(sql, titulo, descricao, prioridade, solicitanteEmail, ts, ts);
+
+            return ResponseEntity.status(201).body(Map.of(
+                    "mensagem", "Chamado aberto e salvo com sucesso!",
+                    "titulo", titulo != null ? titulo : "",
+                    "status", "ABERTO",
+                    "prioridade", prioridade,
+                    "solicitanteEmail", solicitanteEmail != null ? solicitanteEmail : ""
+            ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Erro ao criar chamado: " + e.getMessage());
@@ -56,10 +65,9 @@ public class ChamadoController {
     @PutMapping("/{id}/status")
     public ResponseEntity<?> atualizarStatusChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
-            // Extrai o status de forma segura, seja ele enviado como "status" ou "novoStatus"
             String novoStatus = req.containsKey("status") ? (String) req.get("status") : (String) req.get("novoStatus");
             if (novoStatus == null) {
-                novoStatus = "FECHADO"; // Valor padrão caso venha vazio
+                novoStatus = "FECHADO";
             }
 
             String sql = "UPDATE chamados SET status = ?, atualizado_em = ? WHERE id = ?";
@@ -85,13 +93,12 @@ public class ChamadoController {
             String prioridade = req.containsKey("prioridade") ? (String) req.get("prioridade") : null;
 
             String sql = "UPDATE chamados SET " +
-                         "responsavel = COALESCE(?, responsavel), " +
                          "status = COALESCE(?, status), " +
                          "prioridade = COALESCE(?, prioridade), " +
                          "atualizado_em = ? " +
                          "WHERE id = ?";
-            
-            int linhasAfetadas = jdbcTemplate.update(sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
+
+            int linhasAfetadas = jdbcTemplate.update(sql, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
 
             if (linhasAfetadas > 0) {
                 return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado com sucesso!"));
@@ -104,5 +111,3 @@ public class ChamadoController {
         }
     }
 }
-
-//bora ver
