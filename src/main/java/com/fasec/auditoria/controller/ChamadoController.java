@@ -22,7 +22,10 @@ public class ChamadoController {
     @GetMapping
     public ResponseEntity<?> listarChamados() {
         try {
-            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em FROM chamados ORDER BY criado_em DESC";
+            String sql = "SELECT id, titulo, descricao, status, prioridade, solicitante_email, " +
+                         "tecnico_atribuido_email, tecnico_atribuido_email AS responsavel, " +
+                         "departamento_id, criado_em, atualizado_em " +
+                         "FROM chamados ORDER BY criado_em DESC";
             List> chamados = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(chamados);
         } catch (Exception e) {
@@ -32,7 +35,7 @@ public class ChamadoController {
         }
     }
 
-    // 2. Criar um novo chamado
+    // 2. Criar um novo chamado e retornar o registro salvo com ID
     @PostMapping
     public ResponseEntity<?> criarChamado(@RequestBody Map<String, Object> req) {
         try {
@@ -41,20 +44,19 @@ public class ChamadoController {
             String prioridade = req.get("prioridade") != null ? String.valueOf(req.get("prioridade")) : "MEDIA";
             String solicitanteEmail = (String) req.get("solicitanteEmail");
 
-            String sql = "INSERT INTO chamados (titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em) " +
-                         "VALUES (?, ?, 'ABERTO', ?, ?, ?, ?)";
-
             LocalDateTime agora = LocalDateTime.now();
             Timestamp ts = Timestamp.valueOf(agora);
-            jdbcTemplate.update(sql, titulo, descricao, prioridade, solicitanteEmail, ts, ts);
 
-            return ResponseEntity.status(201).body(Map.of(
-                    "mensagem", "Chamado aberto e salvo com sucesso!",
-                    "titulo", titulo != null ? titulo : "",
-                    "status", "ABERTO",
-                    "prioridade", prioridade,
-                    "solicitanteEmail", solicitanteEmail != null ? solicitanteEmail : ""
-            ));
+            String sql = "INSERT INTO chamados (titulo, descricao, status, prioridade, solicitante_email, criado_em, atualizado_em) " +
+                         "VALUES (?, ?, 'ABERTO', ?, ?, ?, ?) " +
+                         "RETURNING id, titulo, descricao, status, prioridade, solicitante_email, " +
+                         "tecnico_atribuido_email, tecnico_atribuido_email AS responsavel, criado_em, atualizado_em";
+
+            Map<String, Object> criado = jdbcTemplate.queryForMap(
+                    sql, titulo, descricao, prioridade, solicitanteEmail, ts, ts
+            );
+
+            return ResponseEntity.status(201).body(criado);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Erro ao criar chamado: " + e.getMessage());
@@ -84,21 +86,26 @@ public class ChamadoController {
         }
     }
 
-    // 4. Atualizar dados gerais / Atribuir responsável
+    // 4. Atualizar dados gerais / Atribuir técnico responsável
     @PutMapping("/{id}")
     public ResponseEntity<?> atualizarChamado(@PathVariable Long id, @RequestBody Map<String, Object> req) {
         try {
-            String responsavel = req.containsKey("responsavel") ? (String) req.get("responsavel") : null;
+            String responsavel = req.containsKey("responsavel")
+                    ? (String) req.get("responsavel")
+                    : (String) req.get("tecnico_atribuido_email");
             String status = req.containsKey("status") ? (String) req.get("status") : null;
             String prioridade = req.containsKey("prioridade") ? (String) req.get("prioridade") : null;
 
             String sql = "UPDATE chamados SET " +
+                         "tecnico_atribuido_email = COALESCE(?, tecnico_atribuido_email), " +
                          "status = COALESCE(?, status), " +
                          "prioridade = COALESCE(?, prioridade), " +
                          "atualizado_em = ? " +
                          "WHERE id = ?";
 
-            int linhasAfetadas = jdbcTemplate.update(sql, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id);
+            int linhasAfetadas = jdbcTemplate.update(
+                    sql, responsavel, status, prioridade, Timestamp.valueOf(LocalDateTime.now()), id
+            );
 
             if (linhasAfetadas > 0) {
                 return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado com sucesso!"));
