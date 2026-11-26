@@ -2,6 +2,7 @@ package com.fasec.auditoria.controller;
 
 import com.fasec.auditoria.dto.RegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -37,9 +38,16 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> registrarUtilizador(@RequestBody RegisterRequest req) {
         try {
-            String checkSql = "SELECT COUNT(*) FROM usuarios WHERE cpf = ? OR email = ?";
+            String emailNormalizado = req.getEmail() != null ? req.getEmail().trim().toLowerCase() : "";
+            String cpfLimpo = req.getCpf() != null ? req.getCpf().trim() : "";
+
+            if (emailNormalizado.isBlank() || cpfLimpo.isBlank()) {
+                return ResponseEntity.badRequest().body("CPF e e-mail são obrigatórios.");
+            }
+
+            String checkSql = "SELECT COUNT(*) FROM usuarios WHERE cpf = ? OR LOWER(email) = ?";
             Integer count = jdbcTemplate.queryForObject(
-                    checkSql, Integer.class, req.getCpf(), req.getEmail()
+                    checkSql, Integer.class, cpfLimpo, emailNormalizado
             );
 
             if (count != null && count > 0) {
@@ -65,9 +73,9 @@ public class AuthController {
             jdbcTemplate.update(
                     sql,
                     req.getNome(),
-                    req.getEmail(),
+                    emailNormalizado,
                     req.getEmailPessoal(),
-                    req.getCpf(),
+                    cpfLimpo,
                     req.getSenha(),
                     deptId
             );
@@ -84,22 +92,52 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
         try {
             String identificador = credentials.get("identificador");
+            String senha = credentials.get("senha");
 
-            String sql = "SELECT id, nome, email, perfil FROM usuarios WHERE email = ? OR cpf = ?";
-            List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(sql, identificador, identificador);
+            if (identificador == null || identificador.isBlank() || senha == null || senha.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("erro", "Informe e-mail/CPF e senha."));
+            }
+
+            String idTrim = identificador.trim();
+            String sql = """
+                    SELECT u.id, u.nome, u.email, u.email_pessoal, u.cpf,
+                           u.perfil, u.senha_hash, u.ativo,
+                           COALESCE(d.nome, 'Sem setor definido') AS departamento
+                    FROM usuarios u
+                    LEFT JOIN departamentos d ON d.id = u.departamento_id
+                    WHERE LOWER(u.email) = LOWER(?) OR u.cpf = ?
+                    """;
+
+            List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(sql, idTrim, idTrim);
 
             if (usuarios.isEmpty()) {
-                return ResponseEntity.status(404).body("Utilizador não encontrado no sistema.");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("erro", "Usuário não cadastrado. Realize o Primeiro Acesso."));
             }
 
             Map<String, Object> usuario = usuarios.get(0);
+            Boolean ativo = (Boolean) usuario.get("ativo");
+            if (ativo != null && !ativo) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("erro", "Usuário inativo."));
+            }
+
+            String senhaSalva = usuario.get("senha_hash") != null ? String.valueOf(usuario.get("senha_hash")) : "";
+            if (!senha.equals(senhaSalva)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("erro", "Senha inválida."));
+            }
+
+            usuario.remove("senha_hash");
             return ResponseEntity.ok(Map.of(
                     "mensagem", "Login efetuado com sucesso!",
                     "utilizador", usuario
             ));
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Erro no login: " + e.getMessage());
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("erro", "Erro no login: " + e.getMessage()));
         }
     }
 }
