@@ -92,8 +92,7 @@ public class AuthController {
             String identificador = credentials.get("identificador");
 
             String sql = "SELECT id, nome, email, perfil FROM usuarios WHERE email = ? OR cpf = ?";
-            List> usuarios = jdbcTemplate.queryForList(sql, identificador, identificador);
-
+            List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(sql, identificador, identificador);
             if (usuarios.isEmpty()) {
                 return ResponseEntity.status(404).body("Utilizador não encontrado no sistema.");
             }
