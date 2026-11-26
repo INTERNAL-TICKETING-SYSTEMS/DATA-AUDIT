@@ -6,31 +6,31 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.sql.Types;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 @CrossOrigin(origins = "*")
 public class AuthController {
 
-    private static final UUID DEFAULT_DEPT_UUID =
-            UUID.fromString("a0000000-0000-0000-0000-000000000001");
-
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    private UUID parseUuidSafe(String raw) {
+    private Integer parseDepartamentoId(String raw) {
         if (raw == null || raw.isBlank()) {
-            return DEFAULT_DEPT_UUID;
+            return null;
         }
         try {
-            return UUID.fromString(raw.trim());
-        } catch (IllegalArgumentException ex) {
-            return DEFAULT_DEPT_UUID;
+            int deptId = Integer.parseInt(raw.trim());
+            Integer exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM departamentos WHERE id = ?",
+                    Integer.class,
+                    deptId
+            );
+            return (exists != null && exists > 0) ? deptId : null;
+        } catch (Exception ex) {
+            return null;
         }
     }
 
@@ -47,36 +47,30 @@ public class AuthController {
                         .body("Erro: Já existe um utilizador registado com este CPF ou E-mail.");
             }
 
-            String sql = "INSERT INTO usuarios (id, nome, email, email_pessoal, cpf, data_nascimento, genero, senha_hash, telefone_whatsapp, departamento_id, perfil, ativo, criado_em, atualizado_em) " +
-                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SOLICITANTE', TRUE, NOW(), NOW())";
+            Integer deptId = parseDepartamentoId(req.getDepartamentoId());
 
-            UUID userId = UUID.randomUUID();
-            LocalDate dataNasc = (req.getDataNascimento() != null && !req.getDataNascimento().isBlank())
-                    ? LocalDate.parse(req.getDataNascimento().trim())
-                    : null;
+            String sql = """
+                    INSERT INTO usuarios (
+                        nome, email, email_pessoal, cpf,
+                        senha_hash, perfil, departamento_id,
+                        ativo, criado_em, atualizado_em
+                    )
+                    VALUES (
+                        ?, ?, ?, ?,
+                        ?, 'SOLICITANTE', ?,
+                        TRUE, NOW(), NOW()
+                    )
+                    """;
 
-            UUID deptId = parseUuidSafe(req.getDepartamentoId());
-
-            Object[] params = new Object[]{
-                    userId,
+            jdbcTemplate.update(
+                    sql,
                     req.getNome(),
                     req.getEmail(),
                     req.getEmailPessoal(),
                     req.getCpf(),
-                    dataNasc,
-                    req.getGenero(),
                     req.getSenha(),
-                    req.getTelefoneWhatsapp(),
                     deptId
-            };
-
-            int[] types = new int[]{
-                    Types.OTHER, Types.VARCHAR, Types.VARCHAR, Types.VARCHAR,
-                    Types.VARCHAR, Types.DATE, Types.VARCHAR, Types.VARCHAR,
-                    Types.VARCHAR, Types.OTHER
-            };
-
-            jdbcTemplate.update(sql, params, types);
+            );
 
             return ResponseEntity.ok().body("Utilizador registado com sucesso no PostgreSQL!");
         } catch (Exception e) {
@@ -93,6 +87,7 @@ public class AuthController {
 
             String sql = "SELECT id, nome, email, perfil FROM usuarios WHERE email = ? OR cpf = ?";
             List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(sql, identificador, identificador);
+
             if (usuarios.isEmpty()) {
                 return ResponseEntity.status(404).body("Utilizador não encontrado no sistema.");
             }
