@@ -40,7 +40,7 @@ public class VisualizadorTabelasController {
 
         try {
             String sql = "SELECT * FROM " + tabelaLimpa + " LIMIT 50";
-            List> registros = jdbcTemplate.queryForList(sql);
+            List<Map<String, Object>> registros = jdbcTemplate.queryForList(sql);
             return ResponseEntity.ok(registros);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(

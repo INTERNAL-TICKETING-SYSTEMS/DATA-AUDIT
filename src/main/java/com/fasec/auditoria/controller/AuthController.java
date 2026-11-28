@@ -183,7 +183,7 @@ public class AuthController {
                        OR REGEXP_REPLACE(COALESCE(u.cpf, ''), '\\D', '', 'g') = ?
                     """;
 
-            List> usuarios = jdbcTemplate.queryForList(
+            List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(
                     sql, idTrim, idTrim, idTrim, cpfApenasNumeros
             );
 
