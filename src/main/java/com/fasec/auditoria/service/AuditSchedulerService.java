@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -20,7 +21,7 @@ public class AuditSchedulerService {
     private final AuditEventRepository auditEventRepository;
     private final DataViolationRepository dataViolationRepository;
 
-    public AuditSchedulerService(AuditEventRepository auditEventRepository, 
+    public AuditSchedulerService(AuditEventRepository auditEventRepository,
                                  DataViolationRepository dataViolationRepository) {
         this.auditEventRepository = auditEventRepository;
         this.dataViolationRepository = dataViolationRepository;
@@ -37,15 +38,18 @@ public class AuditSchedulerService {
         // Marco temporal: registros anteriores a 48 horas
         LocalDateTime limiteTemporal = LocalDateTime.now().minusHours(48);
 
-        // O PostgreSQL filtra diretamente no disco, trazendo apenas os tickets candidatos
-        List<AuditEvent> eventosCandidatos = auditEventRepository
-                .findByEntidadeAndDataHoraEventoBefore("TICKET", limiteTemporal);
+        List<AuditEvent> eventosCandidatos = new ArrayList<>();
+        eventosCandidatos.addAll(
+                auditEventRepository.findByEntidadeAndDataHoraEventoBefore("CHAMADO", limiteTemporal)
+        );
+        eventosCandidatos.addAll(
+                auditEventRepository.findByEntidadeAndDataHoraEventoBefore("TICKET", limiteTemporal)
+        );
 
         int anomaliasDetectadas = 0;
 
         for (AuditEvent evento : eventosCandidatos) {
             if (evento.getEstadoAtual() != null && evento.getEstadoAtual().toUpperCase().contains("ABERTO")) {
-
                 boolean jaRegistrado = dataViolationRepository.findByEntidadeAfetadaAndIdEntidadeAfetada(
                         evento.getEntidade(), evento.getIdEntidade()
                 ).stream().anyMatch(v -> "REG-004".equals(v.getCodigoRegra()));
@@ -60,7 +64,7 @@ public class AuditSchedulerService {
                     );
                     dataViolationRepository.save(violacao);
                     anomaliasDetectadas++;
-                    log.warn("[SCHEDULER] Inconformidade REG-004 gerada para a entidade {} id {}", 
+                    log.warn("[SCHEDULER] Inconformidade REG-004 gerada para a entidade {} id {}",
                             evento.getEntidade(), evento.getIdEntidade());
                 }
             }

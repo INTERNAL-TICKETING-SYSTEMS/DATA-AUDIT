@@ -20,17 +20,27 @@ public class AuditRuleValidatorService {
     public List<DataViolation> validarEvento(AuditEventRequestDTO dto) {
         List<DataViolation> violacoes = new ArrayList<>();
 
-        // REG-001: Fechamento de ticket sem parecer ou payload de resolução
-        if ("TICKET".equalsIgnoreCase(dto.entidade()) && 
-            dto.estadoAtual() != null && 
-            (dto.estadoAtual().toUpperCase().contains("CONCLUIDO") || dto.estadoAtual().toUpperCase().contains("FECHADO"))) {
-            
-            if (!dto.estadoAtual().toUpperCase().contains("RESOLUCAO") && 
-                !dto.estadoAtual().toUpperCase().contains("PARECER")) {
+        String entidade = dto.entidade() != null ? dto.entidade().trim().toUpperCase() : "";
+        String operacao = dto.tipoOperacao() != null ? dto.tipoOperacao().trim().toUpperCase() : "";
+        String estadoAtual = dto.estadoAtual() != null ? dto.estadoAtual().toUpperCase() : "";
+
+        boolean isChamado = "TICKET".equals(entidade) || "CHAMADO".equals(entidade);
+        boolean isCriacao = "CREATE".equals(operacao) || "CRIACAO".equals(operacao);
+        boolean isResolucaoOuFechamento = "RESOLUCAO".equals(operacao)
+                || estadoAtual.contains("CONCLUIDO")
+                || estadoAtual.contains("RESOLVIDO")
+                || estadoAtual.contains("FECHADO");
+
+        // REG-001: Fechamento/resolução de chamado sem parecer ou solução técnica
+        if (isChamado && isResolucaoOuFechamento) {
+            boolean temParecer = estadoAtual.contains("RESOLUCAO")
+                    || estadoAtual.contains("PARECER")
+                    || estadoAtual.contains("SOLUCAO");
+            if (!temParecer) {
                 violacoes.add(new DataViolation(
                     "REG-001",
                     "CRITICA",
-                    "Tentativa de encerramento de chamado sem descrição de parecer ou resolução técnica.",
+                    "Tentativa de encerramento ou resolução de chamado sem descrição de parecer ou solução técnica.",
                     dto.entidade(),
                     dto.idEntidade()
                 ));
@@ -38,20 +48,20 @@ public class AuditRuleValidatorService {
         }
 
         // REG-002: Transição ilegal direta para conclusão na criação
-        if ("CREATE".equalsIgnoreCase(dto.tipoOperacao()) && 
-            dto.estadoAtual() != null && 
-            dto.estadoAtual().toUpperCase().contains("CONCLUIDO")) {
+        if (isChamado && isCriacao
+                && (estadoAtual.contains("CONCLUIDO") || estadoAtual.contains("RESOLVIDO") || estadoAtual.contains("FECHADO"))) {
             violacoes.add(new DataViolation(
                 "REG-002",
                 "ALTA",
-                "Inconsistência de fluxo: chamado criado diretamente com status CONCLUIDO.",
+                "Inconsistência de fluxo: chamado criado diretamente com status concluído/resolvido/fechado.",
                 dto.entidade(),
                 dto.idEntidade()
             ));
         }
 
         // REG-003: Falha de rastreabilidade de autoria
-        if (dto.autor() == null || dto.autor().trim().equalsIgnoreCase("ANONIMO") || dto.autor().trim().equalsIgnoreCase("SISTEMA_SEM_ID")) {
+        String autor = dto.autor() != null ? dto.autor().trim().toUpperCase() : "";
+        if (autor.isBlank() || "ANONIMO".equals(autor) || "SISTEMA_SEM_ID".equals(autor)) {
             violacoes.add(new DataViolation(
                 "REG-003",
                 "MEDIA",

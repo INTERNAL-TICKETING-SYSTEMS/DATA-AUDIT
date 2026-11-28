@@ -15,7 +15,7 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class NotificationController {
 
-    @Value("${brevo.api.key:xkeysib-ac76be0a78505773bf7b559870a6c9195db276d66cba9f78727b49c}")
+    @Value("${brevo.api.key:}")
     private String brevoApiKey;
 
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
@@ -38,17 +38,21 @@ public class NotificationController {
     @PostMapping("/email")
     public ResponseEntity<?> enviarEmail(@RequestBody EmailRequest request) {
         try {
-            // Dispara o envio de forma assíncrona para não prender a resposta HTTP
-            if (request.getDestinatario() != null && !request.getDestinatario().isEmpty()) {
+            if (brevoApiKey == null || brevoApiKey.isBlank()) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body(Map.of("erro", "Serviço de e-mail não configurado (BREVO_API_KEY ausente)."));
+            }
+
+            if (request.getDestinatario() != null && !request.getDestinatario().isBlank()) {
                 enviarAsync(request.getDestinatario(), request.getAssunto(), request.getCorpo());
             } else {
                 System.out.println("[AVISO] Destinatario de e-mail vazio.");
             }
 
-            return ResponseEntity.ok().body("Pedido de e-mail aceite e em processamento!");
+            return ResponseEntity.ok().body(Map.of("mensagem", "Pedido de e-mail aceito e em processamento!"));
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Erro ao processar e-mail: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("erro", "Erro ao processar e-mail: " + e.getMessage()));
         }
     }
 

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
@@ -28,14 +29,17 @@ public class AuditService {
 
     @Transactional
     public AuditEvent registrarEvento(AuditEventRequestDTO dto) {
-        // 1. Gera o hash criptográfico de integridade forense
+        LocalDateTime dataEvento = dto.dataHoraEvento() != null
+                ? dto.dataHoraEvento().truncatedTo(ChronoUnit.SECONDS)
+                : LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+
         String hash = HashUtil.gerarHashSha256(
             dto.origem(),
             dto.entidade(),
             dto.idEntidade(),
             dto.tipoOperacao(),
             dto.autor(),
-            dto.dataHoraEvento().toString(),
+            dataEvento.toString(),
             dto.estadoAtual()
         );
 
@@ -45,7 +49,7 @@ public class AuditService {
             dto.idEntidade(),
             dto.tipoOperacao(),
             dto.autor(),
-            dto.dataHoraEvento(),
+            dataEvento,
             dto.estadoAnterior(),
             dto.estadoAtual(),
             dto.metadados(),
@@ -54,7 +58,6 @@ public class AuditService {
 
         AuditEvent salvo = repository.save(evento);
 
-        // 2. Aciona o motor de validação de regras de integridade operacional
         validatorService.validarEvento(dto);
 
         return salvo;
@@ -81,22 +84,42 @@ public class AuditService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Evento de auditoria não encontrado com ID: " + id));
 
-        String hashRecalculado = HashUtil.gerarHashSha256(
-                evento.getOrigem(),
-                evento.getEntidade(),
-                evento.getIdEntidade(),
-                evento.getTipoOperacao(),
-                evento.getAutor(),
-                evento.getDataHoraEvento().toString(),
-                evento.getEstadoAtual()
-        );
+        LocalDateTime dataBase = evento.getDataHoraEvento();
+        String hashArmazenado = evento.getHashIntegridade();
 
-        boolean isIntegro = hashRecalculado.equalsIgnoreCase(evento.getHashIntegridade());
+        String hashExato = dataBase != null
+                ? HashUtil.gerarHashSha256(
+                        evento.getOrigem(),
+                        evento.getEntidade(),
+                        evento.getIdEntidade(),
+                        evento.getTipoOperacao(),
+                        evento.getAutor(),
+                        dataBase.toString(),
+                        evento.getEstadoAtual()
+                )
+                : "";
+
+        String hashTruncadoSegundos = dataBase != null
+                ? HashUtil.gerarHashSha256(
+                        evento.getOrigem(),
+                        evento.getEntidade(),
+                        evento.getIdEntidade(),
+                        evento.getTipoOperacao(),
+                        evento.getAutor(),
+                        dataBase.truncatedTo(ChronoUnit.SECONDS).toString(),
+                        evento.getEstadoAtual()
+                )
+                : "";
+
+        boolean bateuExato = hashArmazenado != null && hashArmazenado.equalsIgnoreCase(hashExato);
+        boolean bateuTruncado = hashArmazenado != null && hashArmazenado.equalsIgnoreCase(hashTruncadoSegundos);
+        boolean isIntegro = bateuExato || bateuTruncado;
+        String hashRecalculado = bateuExato ? hashExato : hashTruncadoSegundos;
 
         return Map.of(
                 "eventoId", evento.getId(),
                 "statusIntegridade", isIntegro ? "INTEGRO" : "VIOLADO",
-                "hashArmazenado", evento.getHashIntegridade(),
+                "hashArmazenado", hashArmazenado != null ? hashArmazenado : "",
                 "hashRecalculado", hashRecalculado,
                 "dataValidacao", LocalDateTime.now()
         );

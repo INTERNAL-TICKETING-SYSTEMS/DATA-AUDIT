@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/v1/audit")
 @CrossOrigin(origins = "*")
@@ -41,5 +43,10 @@ public class AuditController {
             @PathVariable String idEntidade,
             @PageableDefault(page = 0, size = 10, sort = "dataHoraEvento", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(auditService.listarPorEntidadePaginado(entidade, idEntidade, pageable));
+    }
+
+    @GetMapping("/events/{id}/verificar-integridade")
+    public ResponseEntity<Map<String, Object>> verificarIntegridade(@PathVariable Long id) {
+        return ResponseEntity.ok(auditService.verificarIntegridade(id));
     }
 }
