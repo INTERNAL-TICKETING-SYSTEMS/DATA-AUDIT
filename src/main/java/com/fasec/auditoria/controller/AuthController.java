@@ -8,6 +8,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.lang.reflect.Method;
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +19,8 @@ import java.util.Map;
 public class AuthController {
 
     private static final String DUMMY_HASH_SEED = "$2a$10$ExemploHashSenhaDummyParaTestes";
+    private static final int IDADE_MINIMA = 18;
+    private static final int IDADE_MAXIMA = 110;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -35,6 +39,23 @@ public class AuthController {
             return (exists != null && exists > 0) ? deptId : null;
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    private boolean dataNascimentoValida(String dataStr) {
+        if (dataStr == null || dataStr.isBlank()) {
+            return false;
+        }
+        try {
+            LocalDate dataNasc = LocalDate.parse(dataStr.trim());
+            LocalDate hoje = LocalDate.now();
+            if (dataNasc.isAfter(hoje)) {
+                return false;
+            }
+            int idade = Period.between(dataNasc, hoje).getYears();
+            return idade >= IDADE_MINIMA && idade <= IDADE_MAXIMA;
+        } catch (Exception ex) {
+            return false;
         }
     }
 
@@ -75,20 +96,32 @@ public class AuthController {
     public ResponseEntity<?> registrarUtilizador(@RequestBody RegisterRequest req) {
         try {
             String emailNormalizado = req.getEmail() != null ? req.getEmail().trim().toLowerCase() : "";
+            String emailPessoalNorm = req.getEmailPessoal() != null ? req.getEmailPessoal().trim().toLowerCase() : "";
             String cpfLimpo = req.getCpf() != null ? req.getCpf().replaceAll("\\D", "").trim() : "";
 
             if (emailNormalizado.isBlank() || cpfLimpo.isBlank()) {
                 return ResponseEntity.badRequest().body("CPF e e-mail são obrigatórios.");
             }
 
-            String checkSql = "SELECT COUNT(*) FROM usuarios WHERE cpf = ? OR LOWER(email) = ?";
+            if (req.getDataNascimento() != null && !req.getDataNascimento().isBlank()
+                    && !dataNascimentoValida(req.getDataNascimento())) {
+                return ResponseEntity.badRequest()
+                        .body("Data de nascimento inválida ou fora da faixa etária permitida (mínimo 18 anos).");
+            }
+
+            String checkSql = """
+                    SELECT COUNT(*) FROM usuarios
+                    WHERE cpf = ?
+                       OR LOWER(email) = ?
+                       OR (? <> '' AND LOWER(COALESCE(email_pessoal, '')) = ?)
+                    """;
             Integer count = jdbcTemplate.queryForObject(
-                    checkSql, Integer.class, cpfLimpo, emailNormalizado
+                    checkSql, Integer.class, cpfLimpo, emailNormalizado, emailPessoalNorm, emailPessoalNorm
             );
 
             if (count != null && count > 0) {
                 return ResponseEntity.badRequest()
-                        .body("Erro: Já existe um utilizador registado com este CPF ou E-mail.");
+                        .body("Não foi possível concluir o cadastro com os dados informados. Verifique os campos ou entre em contato com o suporte.");
             }
 
             Integer deptId = parseDepartamentoId(req.getDepartamentoId());
@@ -145,12 +178,13 @@ public class AuthController {
                     FROM usuarios u
                     LEFT JOIN departamentos d ON d.id = u.departamento_id
                     WHERE LOWER(u.email) = LOWER(?)
+                       OR LOWER(u.email_pessoal) = LOWER(?)
                        OR u.cpf = ?
                        OR REGEXP_REPLACE(COALESCE(u.cpf, ''), '\\D', '', 'g') = ?
                     """;
 
-            List<Map<String, Object>> usuarios = jdbcTemplate.queryForList(
-                    sql, idTrim, idTrim, cpfApenasNumeros
+            List> usuarios = jdbcTemplate.queryForList(
+                    sql, idTrim, idTrim, idTrim, cpfApenasNumeros
             );
 
             if (usuarios.isEmpty()) {

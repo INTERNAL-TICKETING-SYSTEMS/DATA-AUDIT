@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @RestController
 @RequestMapping("/api/v1/chamados")
@@ -31,6 +33,7 @@ public class ChamadoController {
 
     private final JdbcTemplate jdbcTemplate;
     private final Path uploadRootPath;
+    private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     public ChamadoController(
             JdbcTemplate jdbcTemplate,
@@ -44,6 +47,9 @@ public class ChamadoController {
     public void inicializarEstrutura() {
         try {
             jdbcTemplate.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS solucao TEXT");
+            jdbcTemplate.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS protocolo VARCHAR(50)");
+            jdbcTemplate.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)");
+            jdbcTemplate.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS solicitante_departamento VARCHAR(180)");
             jdbcTemplate.execute("""
                     CREATE TABLE IF NOT EXISTS chamado_mensagens (
                         id SERIAL PRIMARY KEY,
@@ -73,12 +79,15 @@ public class ChamadoController {
 
     public record ChamadoDTO(
             Long id,
+            String protocolo,
             String titulo,
             String descricao,
+            String categoria,
             String status,
             String prioridade,
             String solicitante_email,
             String solicitanteEmail,
+            String solicitanteDepartamento,
             String tecnico_atribuido_email,
             String responsavel,
             String solucao,
@@ -105,17 +114,30 @@ public class ChamadoController {
             Timestamp criado_em
     ) {}
 
+    public record MembroEquipeDTO(
+            Long id,
+            String nome,
+            String email,
+            String perfil,
+            String departamento,
+            boolean ativo,
+            boolean disponivel
+    ) {}
+
     private static final RowMapper<ChamadoDTO> CHAMADO_ROW_MAPPER = (ResultSet rs, int rowNum) -> {
         String emailSolicitante = rs.getString("solicitante_email");
         String tecnico = rs.getString("tecnico_atribuido_email");
         return new ChamadoDTO(
                 rs.getLong("id"),
+                rs.getString("protocolo"),
                 rs.getString("titulo"),
                 rs.getString("descricao"),
+                rs.getString("categoria"),
                 rs.getString("status"),
                 rs.getString("prioridade"),
                 emailSolicitante,
                 emailSolicitante,
+                rs.getString("solicitante_departamento"),
                 tecnico,
                 tecnico,
                 rs.getString("solucao"),
@@ -143,6 +165,31 @@ public class ChamadoController {
             rs.getTimestamp("criado_em")
     );
 
+    private void notificarSse(String tipoEvento, Object payload) {
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().name(tipoEvento).data(payload));
+            } catch (Exception ex) {
+                emitters.remove(emitter);
+            }
+        }
+    }
+
+    @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamChamados() {
+        SseEmitter emitter = new SseEmitter(0L);
+        emitters.add(emitter);
+        emitter.onCompletion(() -> emitters.remove(emitter));
+        emitter.onTimeout(() -> emitters.remove(emitter));
+        emitter.onError((e) -> emitters.remove(emitter));
+        try {
+            emitter.send(SseEmitter.event().name("conectado").data(Map.of("status", "ok")));
+        } catch (Exception ex) {
+            emitters.remove(emitter);
+        }
+        return emitter;
+    }
+
     private String asNullableString(Object value) {
         return value == null ? null : String.valueOf(value).trim();
     }
@@ -165,13 +212,78 @@ public class ChamadoController {
         }
     }
 
-    @GetMapping
-    public ResponseEntity<?> listarChamados() {
+    @GetMapping("/equipe")
+    public ResponseEntity<?> listarEquipe() {
         try {
             String sql = """
-                    SELECT id, titulo, descricao, status, prioridade,
-                           solicitante_email, tecnico_atribuido_email, solucao,
-                           criado_em, atualizado_em
+                    SELECT u.id, u.nome, u.email, u.perfil,
+                           COALESCE(d.nome, 'Suporte Técnico STI') AS departamento,
+                           COALESCE(u.ativo, TRUE) AS ativo
+                    FROM usuarios u
+                    LEFT JOIN departamentos d ON d.id = u.departamento_id
+                    WHERE COALESCE(u.ativo, TRUE) = TRUE
+                      AND (
+                        UPPER(COALESCE(u.perfil, '')) LIKE '%TEC%'
+                        OR UPPER(COALESCE(u.perfil, '')) LIKE '%GEST%'
+                        OR UPPER(COALESCE(u.perfil, '')) LIKE '%ADMIN%'
+                        OR LOWER(COALESCE(u.email, '')) IN (
+                            'carlos.daniel@sti.chamados.com',
+                            'joao.pedro@sti.chamados.com',
+                            'guilherme.ferreira@sti.chamados.com',
+                            'wanderson.maior@sti.chamados.com',
+                            'luigue.brandao@sti.chamados.com',
+                            'elias.junior@sti.chamados.com'
+                        )
+                      )
+                    ORDER BY u.nome ASC
+                    """;
+
+            List<MembroEquipeDTO> equipe = jdbcTemplate.query(sql, (rs, rowNum) -> {
+                boolean isAtivo = rs.getBoolean("ativo");
+                return new MembroEquipeDTO(
+                        rs.getLong("id"),
+                        rs.getString("nome"),
+                        rs.getString("email"),
+                        rs.getString("perfil"),
+                        rs.getString("departamento"),
+                        isAtivo,
+                        isAtivo
+                );
+            });
+
+            return ResponseEntity.ok(equipe);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("erro", "Falha ao carregar equipe", "detalhes", e.getMessage()));
+        }
+    }
+
+    @GetMapping
+    public ResponseEntity<?> listarChamados(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String email
+    ) {
+        try {
+            boolean restringirAoSolicitante = "usuario".equalsIgnoreCase(role)
+                    && email != null && !email.isBlank();
+
+            if (restringirAoSolicitante) {
+                String sql = """
+                        SELECT id, protocolo, titulo, descricao, categoria, status, prioridade,
+                               solicitante_email, solicitante_departamento, tecnico_atribuido_email,
+                               solucao, criado_em, atualizado_em
+                        FROM chamados
+                        WHERE LOWER(solicitante_email) = LOWER(?)
+                        ORDER BY criado_em DESC, id DESC
+                        """;
+                return ResponseEntity.ok(jdbcTemplate.query(sql, CHAMADO_ROW_MAPPER, email.trim()));
+            }
+
+            String sql = """
+                    SELECT id, protocolo, titulo, descricao, categoria, status, prioridade,
+                           solicitante_email, solicitante_departamento, tecnico_atribuido_email,
+                           solucao, criado_em, atualizado_em
                     FROM chamados
                     ORDER BY criado_em DESC, id DESC
                     """;
@@ -187,43 +299,56 @@ public class ChamadoController {
     @PostMapping
     public ResponseEntity<?> criarChamado(@RequestBody Map<String, Object> req) {
         try {
+            String protocolo = asNullableString(req.get("protocolo"));
             String titulo = asNullableString(req.get("titulo"));
             String descricao = asNullableString(req.get("descricao"));
+            String categoria = req.get("categoria") != null ? asNullableString(req.get("categoria")) : "Geral";
             String prioridade = req.get("prioridade") != null
                     ? asNullableString(req.get("prioridade"))
                     : "MEDIA";
             String solicitanteEmail = req.get("solicitanteEmail") != null
                     ? asNullableString(req.get("solicitanteEmail"))
                     : asNullableString(req.get("solicitante_email"));
+            String solicitanteDepartamento = req.get("solicitanteDepartamento") != null
+                    ? asNullableString(req.get("solicitanteDepartamento"))
+                    : asNullableString(req.get("solicitante_departamento"));
 
             if (titulo == null || titulo.isBlank() || descricao == null || descricao.isBlank()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("erro", "Título e descrição são obrigatórios."));
             }
 
+            if (protocolo == null || protocolo.isBlank()) {
+                protocolo = "STI-" + LocalDateTime.now().getYear() + "-" + (int) (10000 + Math.random() * 90000);
+            }
+
             Timestamp agora = Timestamp.valueOf(LocalDateTime.now());
             String sql = """
                     INSERT INTO chamados (
-                        titulo, descricao, status, prioridade,
-                        solicitante_email, criado_em, atualizado_em
+                        protocolo, titulo, descricao, categoria, status, prioridade,
+                        solicitante_email, solicitante_departamento, criado_em, atualizado_em
                     )
-                    VALUES (?, ?, 'ABERTO', ?, ?, ?, ?)
-                    RETURNING id, titulo, descricao, status, prioridade,
-                              solicitante_email, tecnico_atribuido_email, solucao,
-                              criado_em, atualizado_em
+                    VALUES (?, ?, ?, ?, 'ABERTO', ?, ?, ?, ?, ?)
+                    RETURNING id, protocolo, titulo, descricao, categoria, status, prioridade,
+                              solicitante_email, solicitante_departamento, tecnico_atribuido_email,
+                              solucao, criado_em, atualizado_em
                     """;
 
             ChamadoDTO criado = jdbcTemplate.queryForObject(
                     sql,
                     CHAMADO_ROW_MAPPER,
+                    protocolo,
                     titulo,
                     descricao,
+                    categoria,
                     prioridade,
                     solicitanteEmail,
+                    solicitanteDepartamento,
                     agora,
                     agora
             );
 
+            notificarSse("chamado-criado", criado);
             return ResponseEntity.status(HttpStatus.CREATED).body(criado);
         } catch (Exception e) {
             e.printStackTrace();
@@ -256,6 +381,7 @@ public class ChamadoController {
                         .body(Map.of("erro", "Chamado não encontrado."));
             }
 
+            notificarSse("chamado-atualizado", Map.of("id", id, "status", novoStatus));
             return ResponseEntity.ok(Map.of("mensagem", "Status atualizado com sucesso.", "status", novoStatus));
         } catch (Exception e) {
             e.printStackTrace();
@@ -292,6 +418,7 @@ public class ChamadoController {
                         .body(Map.of("erro", "Chamado não encontrado."));
             }
 
+            notificarSse("chamado-atualizado", Map.of("id", id));
             return ResponseEntity.ok(Map.of("mensagem", "Chamado atualizado com sucesso."));
         } catch (Exception e) {
             e.printStackTrace();
@@ -352,6 +479,7 @@ public class ChamadoController {
             );
 
             jdbcTemplate.update("UPDATE chamados SET atualizado_em = ? WHERE id = ?", agora, id);
+            notificarSse("mensagem-criada", salva);
             return ResponseEntity.status(HttpStatus.CREATED).body(salva);
         } catch (Exception e) {
             e.printStackTrace();
